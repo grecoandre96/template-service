@@ -1,0 +1,637 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>DocxFlow</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+  <style>
+    [x-cloak] { display: none !important; }
+    .drag-active { border-color: #6366f1 !important; background-color: #eef2ff !important; }
+    .drag-active svg { color: #6366f1 !important; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
+    .fade-enter { animation: fadeIn .15s ease; }
+    @keyframes fadeIn { from { opacity:0; transform:translateY(6px); } to { opacity:1; transform:translateY(0); } }
+    .card-hover { transition: box-shadow .15s ease, border-color .15s ease; }
+    .card-hover:hover { box-shadow: 0 4px 16px rgba(99,102,241,.08); border-color: #c7d2fe; }
+    textarea { resize: vertical; }
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 3px; }
+  </style>
+</head>
+<body class="bg-slate-50 min-h-screen" x-data="app()" x-init="init()">
+
+  <!-- ── HEADER ── -->
+  <header class="bg-white border-b border-gray-200 sticky top-0 z-30">
+    <div class="max-w-5xl mx-auto px-6 h-14 flex items-center justify-between">
+      <div class="flex items-center gap-2.5">
+        <div class="w-7 h-7 bg-indigo-600 rounded-md flex items-center justify-center shadow-sm">
+          <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5"
+              d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+          </svg>
+        </div>
+        <span class="text-base font-bold text-gray-900 tracking-tight">DocxFlow</span>
+        <span x-show="templates.length > 0" class="text-xs bg-indigo-100 text-indigo-600 font-semibold px-2 py-0.5 rounded-full" x-text="templates.length"></span>
+      </div>
+
+      <div class="flex items-center gap-2">
+        <!-- API key badge -->
+        <button @click="showKeyModal = true"
+          class="flex items-center gap-2 text-xs bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-lg px-3 py-1.5 transition-colors">
+          <svg class="w-3.5 h-3.5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"/>
+          </svg>
+          <span class="font-mono" x-text="apiKeyMasked"></span>
+          <svg class="w-3 h-3 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/>
+          </svg>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <main class="max-w-5xl mx-auto px-6 py-8 space-y-8">
+
+    <!-- ── UPLOAD CARD ── -->
+    <div class="bg-white rounded-2xl border border-gray-200 overflow-hidden shadow-sm">
+      <div class="px-6 pt-5 pb-4 border-b border-gray-100">
+        <h2 class="text-sm font-semibold text-gray-700 uppercase tracking-wider">Nuovo template</h2>
+      </div>
+      <div class="p-6">
+        <!-- Drop zone -->
+        <div x-show="!uploadFile"
+          class="border-2 border-dashed border-gray-200 rounded-xl p-10 text-center cursor-pointer transition-all duration-150"
+          @dragover.prevent="$el.classList.add('drag-active')"
+          @dragleave.prevent="$el.classList.remove('drag-active')"
+          @drop.prevent="onDrop($event); $el.classList.remove('drag-active')"
+          @click="$refs.fileInput.click()"
+        >
+          <div class="w-12 h-12 bg-gray-100 rounded-xl flex items-center justify-center mx-auto mb-3">
+            <svg class="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+                d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/>
+            </svg>
+          </div>
+          <p class="text-sm text-gray-500 mb-1">
+            Trascina un file <span class="text-indigo-600 font-semibold">.docx</span> oppure
+            <span class="text-indigo-600 underline cursor-pointer">sfoglia</span>
+          </p>
+          <p class="text-xs text-gray-400">Max 10MB · Placeholder con sintassi <code class="bg-gray-100 px-1 rounded">{campo}</code></p>
+          <input type="file" accept=".docx" class="hidden" x-ref="fileInput" @change="onFileSelect($event)" />
+        </div>
+
+        <!-- File selezionato -->
+        <div x-show="uploadFile" x-cloak class="fade-enter">
+          <div class="flex items-center gap-3 bg-indigo-50 border border-indigo-100 rounded-xl px-4 py-3 mb-4">
+            <div class="w-9 h-9 bg-indigo-600 rounded-lg flex items-center justify-center shrink-0">
+              <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                  d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+              </svg>
+            </div>
+            <div class="flex-1 min-w-0">
+              <p class="text-sm font-medium text-indigo-900 truncate" x-text="uploadFile?.name"></p>
+              <p class="text-xs text-indigo-500" x-text="uploadFile ? (uploadFile.size / 1024).toFixed(1) + ' KB' : ''"></p>
+            </div>
+            <button @click="uploadFile = null; uploadName = ''; $refs.fileInput.value = ''"
+              class="text-indigo-400 hover:text-indigo-600 transition-colors">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+              </svg>
+            </button>
+          </div>
+
+          <div class="flex gap-3">
+            <div class="flex-1">
+              <label class="block text-xs font-medium text-gray-500 mb-1.5">Nome template</label>
+              <input type="text" x-model="uploadName"
+                class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                :placeholder="uploadFile?.name.replace('.docx','') || 'Nome template'" />
+            </div>
+            <div class="flex items-end gap-2">
+              <button @click="uploadTemplate()" :disabled="uploading"
+                class="bg-indigo-600 text-white text-sm font-medium px-5 py-2 rounded-lg hover:bg-indigo-700 disabled:opacity-50 transition-colors flex items-center gap-2">
+                <svg x-show="uploading" class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                  <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+                  <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+                </svg>
+                <span x-text="uploading ? 'Caricamento...' : 'Carica template'"></span>
+              </button>
+            </div>
+          </div>
+
+          <p x-show="uploadError" x-cloak class="mt-2 text-xs text-red-500 flex items-center gap-1">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+            </svg>
+            <span x-text="uploadError"></span>
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── LISTA TEMPLATE ── -->
+    <div>
+      <div class="flex items-center justify-between mb-4">
+        <h2 class="text-sm font-semibold text-gray-700 uppercase tracking-wider">
+          Template
+        </h2>
+        <button @click="loadTemplates()"
+          class="text-xs text-gray-400 hover:text-gray-600 flex items-center gap-1.5 transition-colors">
+          <svg class="w-3.5 h-3.5" :class="loading ? 'animate-spin' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+          </svg>
+          Aggiorna
+        </button>
+      </div>
+
+      <!-- Empty state -->
+      <div x-show="!loading && templates.length === 0"
+        class="bg-white rounded-2xl border border-dashed border-gray-200 py-16 text-center fade-enter">
+        <div class="w-14 h-14 bg-gray-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
+          <svg class="w-7 h-7 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+              d="M9 13h6m-3-3v6m-9 1V7a2 2 0 012-2h6l2 2h6a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z"/>
+          </svg>
+        </div>
+        <p class="text-sm font-medium text-gray-400">Nessun template ancora</p>
+        <p class="text-xs text-gray-300 mt-1">Carica il primo template qui sopra</p>
+      </div>
+
+      <!-- Cards -->
+      <div class="space-y-3" x-show="!loading || templates.length > 0">
+        <template x-for="t in templates" :key="t.id">
+          <div class="bg-white rounded-2xl border border-gray-200 card-hover fade-enter overflow-hidden">
+            <div class="p-5">
+              <div class="flex items-start justify-between gap-4">
+
+                <!-- Info sinistra -->
+                <div class="flex-1 min-w-0">
+                  <!-- Nome + edit -->
+                  <div class="flex items-center gap-2 mb-0.5">
+                    <span x-show="editingId !== t.id"
+                      class="text-base font-semibold text-gray-900 truncate" x-text="t.name"></span>
+                    <input x-show="editingId === t.id" x-model="editingName"
+                      @keydown.enter="saveName(t)" @keydown.escape="editingId = null"
+                      class="text-base font-semibold text-gray-900 border-b-2 border-indigo-500 outline-none bg-transparent flex-1 min-w-0" />
+                    <button x-show="editingId !== t.id"
+                      @click="editingId = t.id; editingName = t.name"
+                      class="text-gray-300 hover:text-gray-500 shrink-0 transition-colors" title="Rinomina">
+                      <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                          d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/>
+                      </svg>
+                    </button>
+                    <div x-show="editingId === t.id" class="flex items-center gap-1.5 shrink-0">
+                      <button @click="saveName(t)" class="text-xs text-white bg-indigo-600 hover:bg-indigo-700 px-2 py-0.5 rounded-md font-medium">Salva</button>
+                      <button @click="editingId = null" class="text-xs text-gray-400 hover:text-gray-600">Annulla</button>
+                    </div>
+                  </div>
+
+                  <!-- Meta -->
+                  <p class="text-xs text-gray-400 mb-3" x-text="`${formatDate(t.created_at)} · ${t.original_filename}`"></p>
+
+                  <!-- Campi -->
+                  <div class="flex flex-wrap gap-1.5 items-center">
+                    <span class="text-xs text-gray-400 mr-0.5">Campi:</span>
+                    <template x-for="field in t.fields" :key="field">
+                      <span class="bg-indigo-50 text-indigo-600 text-xs font-mono px-2 py-0.5 rounded-md border border-indigo-100"
+                        x-text="`{${field}}`"></span>
+                    </template>
+                    <span class="text-xs text-gray-300 ml-1" x-text="`(${t.fields.length})`"></span>
+                  </div>
+                </div>
+
+                <!-- Azioni destra -->
+                <div class="flex items-center gap-1.5 shrink-0">
+                  <button @click="openTest(t)"
+                    class="flex items-center gap-1.5 text-xs font-medium bg-gray-100 hover:bg-gray-200 text-gray-600 px-3 py-1.5 rounded-lg transition-colors">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"/>
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                    </svg>
+                    Test
+                  </button>
+                  <button @click="toggleSnippet(t)"
+                    :class="snippetId === t.id ? 'bg-indigo-600 text-white hover:bg-indigo-700' : 'bg-indigo-50 text-indigo-600 hover:bg-indigo-100'"
+                    class="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg transition-colors">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"/>
+                    </svg>
+                    Endpoint
+                  </button>
+                  <button @click="confirmDelete(t)"
+                    class="text-gray-300 hover:text-red-500 p-1.5 rounded-lg hover:bg-red-50 transition-colors" title="Elimina">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                    </svg>
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Snippet espanso -->
+            <div x-show="snippetId === t.id" x-cloak
+              class="border-t border-gray-100 bg-gray-950 px-5 py-4">
+              <div class="flex items-center justify-between mb-2">
+                <div class="flex items-center gap-3">
+                  <span class="text-xs text-gray-500 font-medium">Template ID</span>
+                  <code class="text-xs text-yellow-400 font-mono bg-gray-800 px-2 py-0.5 rounded" x-text="t.id"></code>
+                  <button @click="copyText(t.id)" class="text-xs text-gray-500 hover:text-gray-300 transition-colors">copia ID</button>
+                </div>
+                <button @click="copyText(getSnippet(t))"
+                  class="flex items-center gap-1.5 text-xs text-gray-400 hover:text-green-400 transition-colors">
+                  <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                      d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/>
+                  </svg>
+                  Copia curl
+                </button>
+              </div>
+              <pre class="text-xs text-green-400 font-mono overflow-x-auto leading-relaxed" x-text="getSnippet(t)"></pre>
+            </div>
+          </div>
+        </template>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- ── MODALE API KEY ── -->
+  <div x-show="showKeyModal" x-cloak
+    class="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50"
+    @click.self="apiKey && (showKeyModal = false)">
+    <div class="bg-white rounded-2xl w-full max-w-sm shadow-2xl p-6 fade-enter" @click.stop>
+      <div class="flex items-center gap-3 mb-5">
+        <div class="w-9 h-9 bg-indigo-100 rounded-xl flex items-center justify-center">
+          <svg class="w-5 h-5 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"/>
+          </svg>
+        </div>
+        <div>
+          <h3 class="font-semibold text-gray-900 text-sm">API Key</h3>
+          <p class="text-xs text-gray-400">Salvata nel browser, non inviata a nessuno</p>
+        </div>
+      </div>
+
+      <label class="block text-xs font-medium text-gray-500 mb-1.5">Chiave</label>
+      <input type="password" x-model="apiKeyInput" @keydown.enter="saveApiKey()"
+        class="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent mb-4"
+        placeholder="Inserisci la tua API key" autofocus />
+
+      <div class="flex gap-2">
+        <button x-show="apiKey" @click="showKeyModal = false"
+          class="flex-1 border border-gray-200 text-gray-600 text-sm font-medium py-2 rounded-lg hover:bg-gray-50 transition-colors">
+          Annulla
+        </button>
+        <button @click="saveApiKey()"
+          class="flex-1 bg-indigo-600 text-white text-sm font-medium py-2 rounded-lg hover:bg-indigo-700 transition-colors">
+          Conferma
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── MODALE TEST ── -->
+  <div x-show="testTemplate" x-cloak
+    class="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50"
+    @click.self="testTemplate = null">
+    <div class="bg-white rounded-2xl w-full max-w-md shadow-2xl overflow-hidden fade-enter" @click.stop>
+      <!-- Header modale -->
+      <div class="px-6 pt-5 pb-4 border-b border-gray-100 flex items-center justify-between">
+        <div>
+          <h3 class="font-semibold text-gray-900" x-text="testTemplate?.name"></h3>
+          <p class="text-xs text-gray-400 mt-0.5">Compila i campi e scarica il documento</p>
+        </div>
+        <button @click="testTemplate = null" class="text-gray-300 hover:text-gray-500 transition-colors">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+          </svg>
+        </button>
+      </div>
+
+      <!-- Campi individuali -->
+      <div class="px-6 py-5 space-y-3 max-h-96 overflow-y-auto">
+        <template x-for="field in testTemplate?.fields || []" :key="field">
+          <div>
+            <label class="block text-xs font-medium text-gray-500 mb-1" x-text="field"></label>
+            <input type="text" :placeholder="`Valore per {${field}}`"
+              :x-model="`testFields['${field}']`"
+              @input="testFields[field] = $event.target.value"
+              :value="testFields[field] || ''"
+              class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent" />
+          </div>
+        </template>
+      </div>
+
+      <!-- Footer modale -->
+      <div class="px-6 pb-5">
+        <p x-show="testError" x-cloak class="text-xs text-red-500 mb-3 flex items-center gap-1">
+          <svg class="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+          </svg>
+          <span x-text="testError"></span>
+        </p>
+        <button @click="runTest()" :disabled="testLoading"
+          class="w-full bg-indigo-600 text-white text-sm font-medium py-2.5 rounded-xl hover:bg-indigo-700 disabled:opacity-50 transition-colors flex items-center justify-center gap-2">
+          <svg x-show="testLoading" class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+          </svg>
+          <svg x-show="!testLoading" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+          </svg>
+          <span x-text="testLoading ? 'Generazione in corso...' : 'Genera e scarica DOCX'"></span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── MODALE ELIMINA ── -->
+  <div x-show="deleteTarget" x-cloak
+    class="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50"
+    @click.self="deleteTarget = null">
+    <div class="bg-white rounded-2xl w-full max-w-xs shadow-2xl p-6 text-center fade-enter" @click.stop>
+      <div class="w-12 h-12 bg-red-50 rounded-2xl flex items-center justify-center mx-auto mb-4">
+        <svg class="w-6 h-6 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+            d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+        </svg>
+      </div>
+      <h3 class="font-semibold text-gray-900 mb-1">Elimina template</h3>
+      <p class="text-sm text-gray-400 mb-5">
+        Vuoi eliminare <span class="font-medium text-gray-600" x-text="`"${deleteTarget?.name}"`"></span>?
+        <br>L'operazione non è reversibile.
+      </p>
+      <div class="flex gap-2">
+        <button @click="deleteTarget = null"
+          class="flex-1 border border-gray-200 text-gray-600 text-sm font-medium py-2 rounded-xl hover:bg-gray-50 transition-colors">
+          Annulla
+        </button>
+        <button @click="deleteTemplate()"
+          class="flex-1 bg-red-500 text-white text-sm font-medium py-2 rounded-xl hover:bg-red-600 transition-colors">
+          Elimina
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── TOAST ── -->
+  <div class="fixed bottom-5 right-5 z-50 space-y-2 pointer-events-none">
+    <template x-for="toast in toasts" :key="toast.id">
+      <div class="flex items-center gap-2.5 bg-gray-900 text-white text-sm px-4 py-2.5 rounded-xl shadow-xl pointer-events-auto fade-enter"
+        x-transition:enter="transition ease-out duration-200"
+        x-transition:enter-start="opacity-0 translate-y-2 scale-95"
+        x-transition:enter-end="opacity-100 translate-y-0 scale-100"
+        x-transition:leave="transition ease-in duration-150"
+        x-transition:leave-start="opacity-100"
+        x-transition:leave-end="opacity-0">
+        <svg class="w-4 h-4 text-green-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+        </svg>
+        <span x-text="toast.message"></span>
+      </div>
+    </template>
+  </div>
+
+<script>
+function app() {
+  return {
+    templates: [],
+    loading: true,
+    uploadFile: null,
+    uploadName: '',
+    uploading: false,
+    uploadError: '',
+
+    // test modal
+    testTemplate: null,
+    testFields: {},
+    testLoading: false,
+    testError: '',
+
+    // other state
+    deleteTarget: null,
+    toasts: [],
+    snippetId: null,
+    editingId: null,
+    editingName: '',
+
+    // api key
+    apiKey: '',
+    apiKeyInput: '',
+    apiKeyMasked: '••••••••',
+    showKeyModal: false,
+
+    async init() {
+      this.apiKey = localStorage.getItem('api_key') || '';
+      if (!this.apiKey) {
+        this.showKeyModal = true;
+      } else {
+        this.updateKeyMask();
+        await this.loadTemplates();
+      }
+    },
+
+    updateKeyMask() {
+      this.apiKeyMasked = this.apiKey
+        ? this.apiKey.slice(0, 3) + '••••••' + this.apiKey.slice(-3)
+        : 'non impostata';
+    },
+
+    async saveApiKey() {
+      const key = this.apiKeyInput.trim();
+      if (!key) return;
+      this.apiKey = key;
+      this.apiKeyInput = '';
+      localStorage.setItem('api_key', key);
+      this.updateKeyMask();
+      this.showKeyModal = false;
+      await this.loadTemplates();
+    },
+
+    async loadTemplates() {
+      this.loading = true;
+      try {
+        const r = await fetch('/api/templates', {
+          headers: { 'Authorization': `Bearer ${this.apiKey}` }
+        });
+        if (r.status === 401) { this.showKeyModal = true; return; }
+        if (!r.ok) throw new Error(await r.text());
+        this.templates = await r.json();
+      } catch (e) {
+        this.toast('Errore: ' + e.message);
+      } finally {
+        this.loading = false;
+      }
+    },
+
+    onFileSelect(e) {
+      const file = e.target.files[0];
+      if (file) {
+        this.uploadFile = file;
+        this.uploadName = file.name.replace(/\.docx$/i, '').replace(/_/g, ' ');
+        this.uploadError = '';
+      }
+    },
+
+    onDrop(e) {
+      const file = e.dataTransfer.files[0];
+      if (file && file.name.toLowerCase().endsWith('.docx')) {
+        this.uploadFile = file;
+        this.uploadName = file.name.replace(/\.docx$/i, '').replace(/_/g, ' ');
+        this.uploadError = '';
+      } else {
+        this.toast('Solo file .docx accettati');
+      }
+    },
+
+    async uploadTemplate() {
+      if (!this.uploadFile) return;
+      this.uploading = true;
+      this.uploadError = '';
+      const fd = new FormData();
+      fd.append('template', this.uploadFile);
+      fd.append('name', this.uploadName || this.uploadFile.name.replace(/\.docx$/i, ''));
+      try {
+        const r = await fetch('/api/templates', {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${this.apiKey}` },
+          body: fd,
+        });
+        const data = await r.json();
+        if (!r.ok) throw new Error(data.error || 'Errore sconosciuto');
+        this.templates.unshift(data);
+        this.uploadFile = null;
+        this.uploadName = '';
+        this.$refs.fileInput.value = '';
+        this.toast(`Template "${data.name}" caricato · ${data.fields.length} campi rilevati`);
+      } catch (e) {
+        this.uploadError = e.message;
+      } finally {
+        this.uploading = false;
+      }
+    },
+
+    openTest(t) {
+      this.testTemplate = t;
+      this.testError = '';
+      this.testFields = {};
+      t.fields.forEach(f => this.testFields[f] = '');
+    },
+
+    async runTest() {
+      this.testLoading = true;
+      this.testError = '';
+      try {
+        const r = await fetch(`/api/generate/${this.testTemplate.id}`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${this.apiKey}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(this.testFields),
+        });
+        if (!r.ok) {
+          const err = await r.json();
+          throw new Error(err.error || 'Errore sconosciuto');
+        }
+        const blob = await r.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${this.testTemplate.name}_compilato.docx`;
+        a.click();
+        URL.revokeObjectURL(url);
+        this.testTemplate = null;
+        this.toast('DOCX generato e scaricato');
+      } catch (e) {
+        this.testError = e.message;
+      } finally {
+        this.testLoading = false;
+      }
+    },
+
+    confirmDelete(t) { this.deleteTarget = t; },
+
+    async deleteTemplate() {
+      if (!this.deleteTarget) return;
+      try {
+        const r = await fetch(`/api/templates/${this.deleteTarget.id}`, {
+          method: 'DELETE',
+          headers: { 'Authorization': `Bearer ${this.apiKey}` },
+        });
+        if (!r.ok) throw new Error('Errore eliminazione');
+        this.templates = this.templates.filter(t => t.id !== this.deleteTarget.id);
+        this.toast(`"${this.deleteTarget.name}" eliminato`);
+        this.deleteTarget = null;
+      } catch (e) {
+        this.toast('Errore: ' + e.message);
+        this.deleteTarget = null;
+      }
+    },
+
+    async saveName(t) {
+      if (!this.editingName.trim()) return;
+      try {
+        const r = await fetch(`/api/templates/${t.id}`, {
+          method: 'PATCH',
+          headers: {
+            'Authorization': `Bearer ${this.apiKey}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ name: this.editingName }),
+        });
+        const data = await r.json();
+        if (!r.ok) throw new Error(data.error);
+        const idx = this.templates.findIndex(x => x.id === t.id);
+        if (idx >= 0) this.templates[idx] = { ...data, fields: data.fields };
+        this.editingId = null;
+        this.toast('Nome aggiornato');
+      } catch (e) {
+        this.toast('Errore: ' + e.message);
+      }
+    },
+
+    toggleSnippet(t) {
+      this.snippetId = this.snippetId === t.id ? null : t.id;
+    },
+
+    getSnippet(t) {
+      const base = window.location.origin;
+      const body = {};
+      t.fields.forEach(f => body[f] = 'valore');
+      return `curl -X POST ${base}/api/generate/${t.id} \\\n  -H "Authorization: Bearer YOUR_API_KEY" \\\n  -H "Content-Type: application/json" \\\n  -d '${JSON.stringify(body, null, 2)}' \\\n  --output documento.docx`;
+    },
+
+    copyText(text) {
+      navigator.clipboard.writeText(text);
+      this.toast('Copiato negli appunti');
+    },
+
+    formatDate(str) {
+      return new Date(str + (str.includes('T') ? '' : 'Z')).toLocaleDateString('it-IT', {
+        day: '2-digit', month: 'short', year: 'numeric'
+      });
+    },
+
+    toast(message) {
+      const id = Date.now();
+      this.toasts.push({ id, message });
+      setTimeout(() => { this.toasts = this.toasts.filter(t => t.id !== id); }, 3000);
+    },
+  };
+}
+</script>
+</body>
+</html>
